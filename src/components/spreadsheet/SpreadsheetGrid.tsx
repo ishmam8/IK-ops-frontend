@@ -48,7 +48,15 @@ export function SpreadsheetGrid({ columns, data, onChange, errors = {} }: Spread
 
   const updateCell = (rowIndex: number, colKey: string, value: any) => {
     const newData = [...data];
-    newData[rowIndex] = { ...newData[rowIndex], [colKey]: value };
+    const column = columns.find(col => col.key === colKey);
+    
+    // Parse number types properly
+    let parsedValue = value;
+    if (column?.type === "number") {
+      parsedValue = value === "" ? 0 : parseFloat(value) || 0;
+    }
+    
+    newData[rowIndex] = { ...newData[rowIndex], [colKey]: parsedValue };
     
     // Recalculate calculated fields
     columns.forEach((col) => {

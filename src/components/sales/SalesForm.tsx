@@ -317,10 +317,14 @@ export function SalesForm() {
                           {ITEMS.find((i) => i.value === item.item)?.label}
                         </td>
                         <td className="p-3 text-sm text-right">{item.quantity}</td>
-                        <td className="p-3 text-sm text-right">{item.unitPrice?.toFixed(2)}</td>
-                        <td className="p-3 text-sm text-right">{item.tax?.toFixed(2)}%</td>
+                        <td className="p-3 text-sm text-right">
+                          {typeof item.unitPrice === 'number' ? item.unitPrice.toFixed(2) : parseFloat(item.unitPrice || 0).toFixed(2)}
+                        </td>
+                        <td className="p-3 text-sm text-right">
+                          {typeof item.tax === 'number' ? item.tax.toFixed(2) : parseFloat(item.tax || 0).toFixed(2)}%
+                        </td>
                         <td className="p-3 text-sm text-right font-medium">
-                          {item.lineTotal?.toFixed(2)}
+                          {typeof item.lineTotal === 'number' ? item.lineTotal.toFixed(2) : parseFloat(item.lineTotal || 0).toFixed(2)}
                         </td>
                       </tr>
                     ))}
