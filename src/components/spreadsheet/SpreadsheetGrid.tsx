@@ -5,34 +5,35 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Plus, Trash2, Copy } from "lucide-react";
 import { cn } from "@/lib/utils";
 
+export interface SpreadsheetRow {
+  [key: string]: string;
+}
+
 export interface ColumnDef {
   key: string;
   label: string;
-  type: "text" | "number" | "select" | "date" | "calculated";
+  type: "text" | "select" | "date" | "calculated";
   width?: string;
   required?: boolean;
-  min?: number;
   options?: { label: string; value: string }[];
-  calculate?: (row: any) => number;
+  calculate?: (row: SpreadsheetRow) => string;
 }
 
-interface SpreadsheetGridProps {
+interface SpreadsheetGridProps<T extends SpreadsheetRow> {
   columns: ColumnDef[];
-  data: any[];
-  onChange: (data: any[]) => void;
+  data: T[];
+  onChange: (data: T[]) => void;
   errors?: Record<number, Record<string, string>>;
 }
 
-export function SpreadsheetGrid({ columns, data, onChange, errors = {} }: SpreadsheetGridProps) {
+export function SpreadsheetGrid<T extends SpreadsheetRow>({ columns, data, onChange, errors = {} }: SpreadsheetGridProps<T>) {
   const [focusedCell, setFocusedCell] = useState<{ row: number; col: number } | null>(null);
   const cellRefs = useRef<{ [key: string]: HTMLInputElement | null }>({});
 
   const addRow = () => {
-    const newRow: any = {};
-    columns.forEach((col) => {
-      if (col.type === "number") newRow[col.key] = 0;
-      else if (col.type === "calculated") newRow[col.key] = 0;
-      else newRow[col.key] = "";
+    const newRow = {} as T;
+    columns.forEach((col)=> {
+      (newRow as SpreadsheetRow)[col.key] = "";
     });
     onChange([...data, newRow]);
   };
@@ -46,25 +47,18 @@ export function SpreadsheetGrid({ columns, data, onChange, errors = {} }: Spread
     onChange([...data.slice(0, index + 1), rowToDuplicate, ...data.slice(index + 1)]);
   };
 
-  const updateCell = (rowIndex: number, colKey: string, value: any) => {
+  const updateCell = (rowIndex: number, colKey: string, value: string) => {
     const newData = [...data];
-    const column = columns.find(col => col.key === colKey);
     
-    // Parse number types properly
-    let parsedValue = value;
-    if (column?.type === "number") {
-      parsedValue = value === "" ? 0 : parseFloat(value) || 0;
-    }
-    
-    newData[rowIndex] = { ...newData[rowIndex], [colKey]: parsedValue };
+    newData[rowIndex] = { ...newData[rowIndex], [colKey]: value };
     
     // Recalculate calculated fields
     columns.forEach((col) => {
       if (col.type === "calculated" && col.calculate) {
-        newData[rowIndex][col.key] = col.calculate(newData[rowIndex]);
+        (newData[rowIndex] as SpreadsheetRow)[col.key] = col.calculate(newData[rowIndex]);
       }
     });
-    
+  
     onChange(newData);
   };
 
@@ -114,13 +108,11 @@ export function SpreadsheetGrid({ columns, data, onChange, errors = {} }: Spread
       const targetRowIndex = rowIndex + rIdx;
       
       if (targetRowIndex >= newData.length) {
-        const newRow: any = {};
+        const newRow = {} as T;  
         columns.forEach((col) => {
-          if (col.type === "number") newRow[col.key] = 0;
-          else if (col.type === "calculated") newRow[col.key] = 0;
-          else newRow[col.key] = "";
+          (newRow as SpreadsheetRow)[col.key] = "";
         });
-        newData.push(newRow);
+        newData.push(newRow);  
       }
       
       cells.forEach((cell, cIdx) => {
@@ -128,8 +120,7 @@ export function SpreadsheetGrid({ columns, data, onChange, errors = {} }: Spread
         if (targetColIndex < columns.length) {
           const col = columns[targetColIndex];
           if (col.type !== "calculated") {
-            const value = col.type === "number" ? parseFloat(cell) || 0 : cell;
-            newData[targetRowIndex][col.key] = value;
+            (newData[targetRowIndex] as SpreadsheetRow)[col.key] = cell;
           }
         }
       });
@@ -137,7 +128,7 @@ export function SpreadsheetGrid({ columns, data, onChange, errors = {} }: Spread
       // Recalculate calculated fields
       columns.forEach((col) => {
         if (col.type === "calculated" && col.calculate) {
-          newData[targetRowIndex][col.key] = col.calculate(newData[targetRowIndex]);
+          (newData[targetRowIndex]as SpreadsheetRow)[col.key] = col.calculate(newData[targetRowIndex]);
         }
       });
     });
@@ -146,8 +137,13 @@ export function SpreadsheetGrid({ columns, data, onChange, errors = {} }: Spread
   };
 
   const totals = columns.reduce((acc, col) => {
-    if (col.type === "number" || col.type === "calculated") {
-      acc[col.key] = data.reduce((sum, row) => sum + (parseFloat(row[col.key]) || 0), 0);
+    if (col.type === "text") {
+      // Try to sum numeric text values
+      const sum = data.reduce((sum, row) => {
+        const val = parseFloat(row[col.key]) || 0;
+        return sum + val;
+      }, 0);
+      acc[col.key] = sum;
     }
     return acc;
   }, {} as Record<string, number>);
@@ -213,7 +209,7 @@ export function SpreadsheetGrid({ columns, data, onChange, errors = {} }: Spread
                       >
                         {col.type === "select" ? (
                           <Select
-                            value={row[col.key]}
+                            value={String(row[col.key])}
                             onValueChange={(value) => updateCell(rowIndex, col.key, value)}
                           >
                             <SelectTrigger className="h-8 border-0 focus:ring-1">
@@ -229,12 +225,12 @@ export function SpreadsheetGrid({ columns, data, onChange, errors = {} }: Spread
                           </Select>
                         ) : col.type === "calculated" ? (
                           <div className="h-8 flex items-center px-3 bg-muted/50 rounded text-sm font-medium">
-                            {row[col.key]?.toFixed(2) || "0.00"}
+                            {row[col.key]}
                           </div>
                         ) : (
                           <Input
                             ref={(el) => (cellRefs.current[cellKey] = el)}
-                            type={col.type === "number" ? "number" : col.type === "date" ? "date" : "text"}
+                            type={col.type === "date" ? "date" : "text"}
                             value={row[col.key]}
                             onChange={(e) => updateCell(rowIndex, col.key, e.target.value)}
                             onKeyDown={(e) => handleKeyDown(e, rowIndex, colIndex)}
@@ -244,7 +240,6 @@ export function SpreadsheetGrid({ columns, data, onChange, errors = {} }: Spread
                               "h-8 border-0 focus:ring-1 focus:ring-primary",
                               hasError && "border-destructive focus:ring-destructive"
                             )}
-                            min={col.min}
                           />
                         )}
                         {hasError && (
@@ -277,7 +272,7 @@ export function SpreadsheetGrid({ columns, data, onChange, errors = {} }: Spread
           )}
         </div>
 
-        {/* Footer Totals */}
+        {/* Footer Totals
         {data.length > 0 && (
           <div className="grid bg-grid-header border-t border-grid-border sticky bottom-0">
             <div className="flex">
@@ -287,13 +282,13 @@ export function SpreadsheetGrid({ columns, data, onChange, errors = {} }: Spread
                   key={col.key}
                   className={cn("p-3 border-r border-grid-border font-bold text-sm", col.width || "flex-1")}
                 >
-                  {(col.type === "number" || col.type === "calculated") && totals[col.key]?.toFixed(2)}
+                  {col.type === "text" && totals[col.key] !== undefined && totals[col.key]?.toFixed(2)}
                 </div>
               ))}
               <div className="w-24 p-3"></div>
             </div>
           </div>
-        )}
+        )} */}
       </div>
     </div>
   );
