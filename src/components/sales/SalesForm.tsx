@@ -7,6 +7,8 @@ import { SpreadsheetGrid, ColumnDef } from "@/components/spreadsheet/Spreadsheet
 import { ChevronLeft, ChevronRight, Check } from "lucide-react";
 import { toast } from "sonner";
 
+const salesTableKey = "sales-entry-grid";
+
 // ---------- Types ----------
 export interface SalesRow {
   invoice_number: string;
@@ -17,6 +19,7 @@ export interface SalesRow {
   sold_by: string;
   gold_weight: string;
   kdm_vori: string;
+  is_rst: boolean;
   sale_price: string;
   cash_card_payment: string;
   gold_payment?: string;
@@ -25,7 +28,7 @@ export interface SalesRow {
   customer_due?: string;
   due_by?: string;
   payment_type: string;
-  [key: string]: string | undefined; 
+  [key: string]: string | boolean | undefined; 
 }
 
 interface SalesFormData {
@@ -45,6 +48,7 @@ const SALE_COLS = [
   { key: "item",               label: "Item",               type: "text",   width: "w-48", required: true },
   { key: "sold_by",            label: "Sold By",            type: "text",   width: "w-32", required: true },
   { key: "gold_weight",        label: "Gold Weight",        type: "text", width: "w-32", required: true },
+  { key: "is_rst",             label: "IS RST",             type: "boolean", width: "w-32" },
   { key: "kdm_vori",           label: "KDM-Vori",           type: "text",   width: "w-28", required: true },
   { key: "sale_price",         label: "Sale Price",         type: "text",   width: "w-32" },
   { key: "cash_card_payment",  label: "Cash/Card Payment",  type: "text", width: "w-36", required: true },
@@ -151,7 +155,7 @@ export function SalesForm() {
             <CardTitle>IK Daily Sales Entry</CardTitle>
             <CardDescription>Fill the date and at least one line item</CardDescription>
           </CardHeader>
-
+          {/* BUSINESS DATE */}
           <CardContent className="space-y-4">
             <div className="grid grid-cols-2 gap-4">
               <div className="space-y-2">
@@ -169,11 +173,17 @@ export function SalesForm() {
               </div>
             </div>
           </CardContent>
-
+          {/* S A L E S */}
           <CardContent className="space-y-4">
+            <div className="flex gap-2 mb-9">
+                <Button size="sm" variant="outline">
+                  Add Order
+                </Button>
+            </div>
             <div className="w-full overflow-x-auto">
               <div className="w-max min-w-full">
                 <SpreadsheetGrid
+                  tableKey={salesTableKey}
                   columns={sale_table_columns}
                   data={formData.items}
                   onChange={(items) => setFormData({ ...formData, items: items as SalesRow[]})}
@@ -186,14 +196,6 @@ export function SalesForm() {
       )}
 
       {/* Step 2: lightweight submit screen */}
-      {/* {step === 2 && (
-        <Card>
-          <CardHeader>
-            <CardTitle>Ready to Submit</CardTitle>
-            <CardDescription>Date: {formData.date} · Rows: {formData.items.length}</CardDescription>
-          </CardHeader>
-        </Card>
-      )} */}
       {step === 2 && (
         <Card>
           <CardHeader>
@@ -215,11 +217,24 @@ export function SalesForm() {
                 <tbody>
                   {formData.items.map((row, idx) => (
                     <tr key={idx} className="hover:bg-muted/50">
-                      {SALE_COLS.map((col) => (
-                        <td key={col.key} className="border border-border p-2 text-sm">
-                          {row[col.key as keyof SalesRow] || '-'}
-                        </td>
-                      ))}
+                      {SALE_COLS.map((col) => {
+                        const value = row[col.key as keyof SalesRow];
+                        let displayValue: string;
+                        
+                        if (col.type === 'boolean') {
+                          displayValue = value ? 'Yes' : 'No';
+                        } else if (value === undefined || value === null || value === '') {
+                          displayValue = '-';
+                        } else {
+                          displayValue = String(value);
+                        }
+                        
+                        return (
+                          <td key={col.key} className="border border-border p-2 text-sm">
+                            {displayValue}
+                          </td>
+                        );
+                      })}
                     </tr>
                   ))}
                 </tbody>

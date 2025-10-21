@@ -6,13 +6,13 @@ import { Plus, Trash2, Copy } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 export interface SpreadsheetRow {
-  [key: string]: string;
+  [key: string]: string | boolean | undefined;
 }
 
 export interface ColumnDef {
   key: string;
   label: string;
-  type: "text" | "select" | "date" | "calculated";
+  type: "text" | "select" | "date" | "boolean" | "calculated";
   width?: string;
   required?: boolean;
   options?: { label: string; value: string }[];
@@ -20,20 +20,25 @@ export interface ColumnDef {
 }
 
 interface SpreadsheetGridProps<T extends SpreadsheetRow> {
+  tableKey: string;
   columns: ColumnDef[];
   data: T[];
   onChange: (data: T[]) => void;
   errors?: Record<number, Record<string, string>>;
 }
 
-export function SpreadsheetGrid<T extends SpreadsheetRow>({ columns, data, onChange, errors = {} }: SpreadsheetGridProps<T>) {
+export function SpreadsheetGrid<T extends SpreadsheetRow>({ tableKey, columns, data, onChange, errors = {} }: SpreadsheetGridProps<T>) {
   const [focusedCell, setFocusedCell] = useState<{ row: number; col: number } | null>(null);
   const cellRefs = useRef<{ [key: string]: HTMLInputElement | null }>({});
 
   const addRow = () => {
     const newRow = {} as T;
     columns.forEach((col)=> {
-      (newRow as SpreadsheetRow)[col.key] = "";
+      if (col.type === "boolean") {
+        (newRow as SpreadsheetRow)[col.key] = false;
+      } else {
+        (newRow as SpreadsheetRow)[col.key] = "";
+      }
     });
     onChange([...data, newRow]);
   };
@@ -47,7 +52,7 @@ export function SpreadsheetGrid<T extends SpreadsheetRow>({ columns, data, onCha
     onChange([...data.slice(0, index + 1), rowToDuplicate, ...data.slice(index + 1)]);
   };
 
-  const updateCell = (rowIndex: number, colKey: string, value: string) => {
+  const updateCell = (rowIndex: number, colKey: string, value: string | boolean) => {
     const newData = [...data];
     
     newData[rowIndex] = { ...newData[rowIndex], [colKey]: value };
@@ -120,7 +125,12 @@ export function SpreadsheetGrid<T extends SpreadsheetRow>({ columns, data, onCha
         if (targetColIndex < columns.length) {
           const col = columns[targetColIndex];
           if (col.type !== "calculated") {
-            (newData[targetRowIndex] as SpreadsheetRow)[col.key] = cell;
+            if (col.type === "boolean") {
+              const boolVal = cell.toLowerCase() === 'true' || cell === '1' || cell.toLowerCase() === 'yes';
+              (newData[targetRowIndex] as SpreadsheetRow)[col.key] = boolVal;
+            } else {
+              (newData[targetRowIndex] as SpreadsheetRow)[col.key] = cell;
+            }
           }
         }
       });
@@ -140,7 +150,7 @@ export function SpreadsheetGrid<T extends SpreadsheetRow>({ columns, data, onCha
     if (col.type === "text") {
       // Try to sum numeric text values
       const sum = data.reduce((sum, row) => {
-        const val = parseFloat(row[col.key]) || 0;
+        const val = parseFloat(row[col.key] as string) || 0;
         return sum + val;
       }, 0);
       acc[col.key] = sum;
@@ -223,6 +233,15 @@ export function SpreadsheetGrid<T extends SpreadsheetRow>({ columns, data, onCha
                               ))}
                             </SelectContent>
                           </Select>
+                        ) : col.type === "boolean" ? (
+                          <div className="h-8 flex items-center justify-center">
+                            <input
+                              type="checkbox"
+                              checked={Boolean(row[col.key])}
+                              onChange={(e) => updateCell(rowIndex, col.key, e.target.checked)}
+                              className="h-4 w-4 rounded border-gray-300"
+                            />
+                          </div>
                         ) : col.type === "calculated" ? (
                           <div className="h-8 flex items-center px-3 bg-muted/50 rounded text-sm font-medium">
                             {row[col.key]}
@@ -231,7 +250,7 @@ export function SpreadsheetGrid<T extends SpreadsheetRow>({ columns, data, onCha
                           <Input
                             ref={(el) => (cellRefs.current[cellKey] = el)}
                             type={col.type === "date" ? "date" : "text"}
-                            value={row[col.key]}
+                            value={(row[col.key] as string) || ""}
                             onChange={(e) => updateCell(rowIndex, col.key, e.target.value)}
                             onKeyDown={(e) => handleKeyDown(e, rowIndex, colIndex)}
                             onPaste={(e) => handlePaste(e, rowIndex, colIndex)}
@@ -272,23 +291,7 @@ export function SpreadsheetGrid<T extends SpreadsheetRow>({ columns, data, onCha
           )}
         </div>
 
-        {/* Footer Totals
-        {data.length > 0 && (
-          <div className="grid bg-grid-header border-t border-grid-border sticky bottom-0">
-            <div className="flex">
-              <div className="w-12 p-3 border-r border-grid-border"></div>
-              {columns.map((col) => (
-                <div
-                  key={col.key}
-                  className={cn("p-3 border-r border-grid-border font-bold text-sm", col.width || "flex-1")}
-                >
-                  {col.type === "text" && totals[col.key] !== undefined && totals[col.key]?.toFixed(2)}
-                </div>
-              ))}
-              <div className="w-24 p-3"></div>
-            </div>
-          </div>
-        )} */}
+
       </div>
     </div>
   );
