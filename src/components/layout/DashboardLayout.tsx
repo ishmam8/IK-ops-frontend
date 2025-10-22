@@ -1,6 +1,6 @@
-import { ReactNode } from "react";
+import { ReactNode, useState } from "react";
 import { NavLink } from "react-router-dom";
-import { LayoutDashboard, ShoppingCart, Receipt, Package } from "lucide-react";
+import { LayoutDashboard, ShoppingCart, Receipt, Package, Menu, X  } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 interface DashboardLayoutProps {
@@ -10,15 +10,21 @@ interface DashboardLayoutProps {
 const navItems = [
   { to: "/", icon: LayoutDashboard, label: "Dashboard" },
   { to: "/sales", icon: ShoppingCart, label: "Sales" },
-  { to: "/expenses", icon: Receipt, label: "Expenses" },
-  { to: "/orders", icon: Package, label: "Orders" },
+  { to: "/payouts", icon: Receipt, label: "Payouts" },
 ];
 
 export function DashboardLayout({ children }: DashboardLayoutProps) {
+  const [isSidebarOpen, setIsSidebarOpen] = useState(true);
+
   return (
     <div className="flex min-h-screen w-full bg-background">
       {/* Sidebar */}
-      <aside className="w-64 bg-sidebar border-r border-sidebar-border">
+      <aside
+        className={cn(
+          "bg-sidebar border-r border-sidebar-border transition-all duration-300 ease-in-out",
+          isSidebarOpen ? "w-64" : "w-0 overflow-hidden"
+        )}
+      >
         <div className="p-6 border-b border-sidebar-border">
           <h1 className="text-xl font-bold text-sidebar-foreground">Jewellery ERP</h1>
         </div>
@@ -44,6 +50,22 @@ export function DashboardLayout({ children }: DashboardLayoutProps) {
           ))}
         </nav>
       </aside>
+      
+      {/* Sidebar Toggle Button */}
+      <button
+        onClick={() => setIsSidebarOpen(!isSidebarOpen)}
+        className="fixed top-2 left-0 z-50 p-1 bg-sidebar border border-sidebar-border rounded-r-lg shadow-lg hover:bg-sidebar-accent transition-all duration-300 ease-in-out"
+        style={{
+          transform: isSidebarOpen ? "translateX(256px)" : "translateX(0)",
+        }}
+        aria-label={isSidebarOpen ? "Close sidebar" : "Open sidebar"}
+      >
+        {isSidebarOpen ? (
+          <X className="h-5 w-5 text-sidebar-foreground" />
+        ) : (
+          <Menu className="h-5 w-5 text-sidebar-foreground" />
+        )}
+      </button>
 
       {/* Main Content */}
       <main className="flex-1 overflow-auto">

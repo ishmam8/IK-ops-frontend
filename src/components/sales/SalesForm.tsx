@@ -367,7 +367,7 @@ export function SalesForm() {
                 <table className="w-full border-collapse border border-border">
                 <thead>
                   <tr className="bg-primary p-2 text-left text-center text-primary-foreground font-semibold">
-                  SALES
+                  <th colSpan={SALE_COLS.length}>SALES</th>
                   </tr>
                   <tr className="bg-muted">
                   {SALE_COLS.map((col) => (
@@ -410,7 +410,7 @@ export function SalesForm() {
               <table className="w-full border-collapse border border-border">
                 <thead>
                   <tr className="bg-primary p-2 text-left text-center text-primary-foreground font-semibold">
-                  ORDERS
+                  <th colSpan={ORDER_COLS.length}>ORDERS</th>
                   </tr>
                   <tr className="bg-muted">
                     {ORDER_COLS.map((col) => (
