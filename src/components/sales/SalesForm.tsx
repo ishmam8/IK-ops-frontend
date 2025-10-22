@@ -1,11 +1,12 @@
-import { useState, useMemo, useCallback } from "react";
+import { useState, useEffect, useMemo, useCallback } from "react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { SpreadsheetGrid, ColumnDef } from "@/components/spreadsheet/SpreadsheetGrid";
 import { ChevronLeft, ChevronRight, Check, PlusCircle } from "lucide-react";
-import { Dialog, DialogTrigger, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";import { toast } from "sonner";
+import { Dialog, DialogTrigger, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
+import { toast } from "sonner";
 
 const salesTableKey = "sales-entry-grid";
 const orderTableKey = "order-entry-grid";
@@ -29,7 +30,7 @@ export interface SalesRow {
   customer_due?: string;
   due_by?: string;
   payment_type: string;
-  [key: string]: string | boolean | undefined; 
+  [key: string]: string | boolean | undefined;
 }
 
 export interface OrderRow {
@@ -43,7 +44,7 @@ export interface OrderRow {
   estimated_order_price: string;
   estimated_order_delivery_date: string;
   final_order_price?: string;
-  [key: string]: string | boolean | undefined; 
+  [key: string]: string | boolean | undefined;
 }
 
 interface SalesFormData {
@@ -51,46 +52,41 @@ interface SalesFormData {
   items: SalesRow[];
 }
 
-interface OrderFormData {
-  date: string;
-  items: OrderRow[];
-}
-
 // column helpers
 type KeyedColumnDef<K extends string> = Omit<ColumnDef, "key"> & { key: K };
 type ColumnsOf<T> = ReadonlyArray<KeyedColumnDef<Extract<keyof T, string>>>;
 
 const SALE_COLS = [
-  { key: "invoice_number",     label: "Invoice #",          type: "text", width: "w-28", required: true },
-  { key: "customer",           label: "Customer Name",      type: "text",   width: "w-40", required: true },
-  { key: "quantity",           label: "Quantity",           type: "text", width: "w-28", required: true },
-  { key: "item_code",          label: "Item Code",          type: "text",   width: "w-32" },
-  { key: "item",               label: "Item",               type: "text",   width: "w-48" },
-  { key: "sold_by",            label: "Sold By",            type: "text",   width: "w-32", required: true },
-  { key: "gold_weight",        label: "Gold Weight",        type: "text", width: "w-32" },
-  { key: "is_rst",             label: "IS RST",             type: "boolean", width: "w-32" },
-  { key: "kdm_vori",           label: "KDM-Vori",           type: "text",   width: "w-28", required: true },
-  { key: "sale_price",         label: "Sale Price",         type: "text",   width: "w-32" },
-  { key: "cash_card_payment",  label: "Cash/Card Payment",  type: "text", width: "w-36", required: true },
-  { key: "gold_payment",       label: "Gold Payment",       type: "text", width: "w-32" },
-  { key: "rst_payment",        label: "RST Payment",        type: "text", width: "w-32" },
-  { key: "rst_advanced",       label: "RST Advanced",       type: "text", width: "w-32" },
-  { key: "customer_due",       label: "Customer Due",       type: "text", width: "w-32" },
-  { key: "due_by",             label: "Due By",             type: "text",   width: "w-28" },
-  { key: "payment_type",       label: "Payment Type",       type: "text",   width: "w-32", required: true },
+  { key: "invoice_number",     label: "Invoice #",          type: "text",    width: "w-28", required: true },
+  { key: "customer",           label: "Customer Name",      type: "text",    width: "w-40", required: true },
+  { key: "quantity",           label: "Quantity",           type: "text",    width: "w-28", required: true },
+  { key: "item_code",          label: "Item Code",          type: "text",    width: "w-32" },
+  { key: "item",               label: "Item",               type: "text",    width: "w-48" },
+  { key: "sold_by",            label: "Sold By",            type: "text",    width: "w-32", required: true },
+  { key: "gold_weight",        label: "Gold Weight",        type: "text",    width: "w-32" },
+  { key: "is_rst",             label: "IS RST",             type: "boolean", width: "w-20" },
+  { key: "kdm_vori",           label: "KDM-Vori",           type: "text",    width: "w-28", required: true },
+  { key: "sale_price",         label: "Sale Price",         type: "text",    width: "w-32" },
+  { key: "cash_card_payment",  label: "Cash/Card Payment",  type: "text",    width: "w-36", required: true },
+  { key: "gold_payment",       label: "Gold Payment",       type: "text",    width: "w-32" },
+  { key: "rst_payment",        label: "RST Payment",        type: "text",    width: "w-32" },
+  { key: "rst_advanced",       label: "RST Advanced",       type: "text",    width: "w-32" },
+  { key: "customer_due",       label: "Customer Due",       type: "text",    width: "w-32" },
+  { key: "due_by",             label: "Due By",             type: "text",    width: "w-28" },
+  { key: "payment_type",       label: "Payment Type",       type: "text",    width: "w-32", required: true },
 ] satisfies ColumnsOf<SalesRow>;
 
 const ORDER_COLS = [
-  { key: "invoice_number",               label: "Invoice #",                   type: "text",   width: "w-28", required: true },
-  { key: "customer",                     label: "Customer Name",               type: "text",   width: "w-40", required: true },
-  { key: "quantity",                     label: "Quantity",                    type: "text",   width: "w-28", required: true },
-  { key: "item_code",                    label: "Item Code",                   type: "text",   width: "w-32" },
-  { key: "item_name",                    label: "Item Name",                   type: "text",   width: "w-48", required: true },
-  { key: "gold_carat",                   label: "Gold Carat",                  type: "text",   width: "w-32", required: true },
-  { key: "artisan",                       label: "Artisan",                    type: "text",   width: "w-32" },
-  { key: "estimated_order_price",       label: "Estimated Order Price",        type: "text",   width: "w-36" },
-  { key: "estimated_order_delivery_date", label: "Est. Order Delivery Date",   type: "text",   width: "w-44" },
-  { key: "final_order_price",           label: "Final Order Price",            type: "text",   width: "w-32" },
+  { key: "invoice_number",                label: "Invoice #",                 type: "text", width: "w-28", required: true },
+  { key: "customer",                      label: "Customer Name",             type: "text", width: "w-40", required: true },
+  { key: "quantity",                      label: "Quantity",                  type: "text", width: "w-28", required: true },
+  { key: "item_code",                     label: "Item Code",                 type: "text", width: "w-32" },
+  { key: "item_name",                     label: "Item Name",                 type: "text", width: "w-48", required: true },
+  { key: "gold_carat",                    label: "Gold Carat",                type: "text", width: "w-32", required: true },
+  { key: "artisan",                       label: "Artisan",                   type: "text", width: "w-32" },
+  { key: "estimated_order_price",         label: "Estimated Order Price",     type: "text", width: "w-36" },
+  { key: "estimated_order_delivery_date", label: "Est. Order Delivery Date",  type: "text", width: "w-44" },
+  { key: "final_order_price",             label: "Final Order Price",         type: "text", width: "w-32" },
 ] satisfies ColumnsOf<OrderRow>;
 
 const sale_table_columns: ColumnDef[] = SALE_COLS;
@@ -102,71 +98,164 @@ const mapOrderToSales = (o: OrderRow): SalesRow => ({
   quantity: o.quantity ?? "",
   item_code: o.item_code ?? "",
   item: o.item_name ?? "",
-  sold_by: "",                                   // PLACEHOLDER: set from current user / selector
-  gold_weight: "",                               // PLACEHOLDER: if known
-  kdm_vori: "",                                  // PLACEHOLDER: not derivable from carat; decide conversion rule
-  is_rst: false,                                 // PLACEHOLDER: default false unless UI indicates otherwise
+  sold_by: "",           // PLACEHOLDER: set from current user / selector
+  gold_weight: "",       // PLACEHOLDER
+  kdm_vori: "",          // PLACEHOLDER
+  is_rst: false,         // PLACEHOLDER
   sale_price: "",
-  cash_card_payment: "",                         // PLACEHOLDER: depends on POS/payment screen
-  gold_payment: "",                              // PLACEHOLDER
-  rst_payment: "",                               // PLACEHOLDER
-  rst_advanced: "",                              // PLACEHOLDER
-  customer_due: "",                              // PLACEHOLDER: compute at submit if you want
+  cash_card_payment: "", // PLACEHOLDER
+  gold_payment: "",
+  rst_payment: "",
+  rst_advanced: "",
+  customer_due: "",
   due_by: "",
-  payment_type: "",                              // PLACEHOLDER: ("cash" | "card" | etc.)
+  payment_type: "",      // PLACEHOLDER
 });
 
+// ---------- Persistence utils ----------
+const LS = {
+  step: "sales-current-step",
+  sales: "sales-form-data",
+  orders: "sales-order-data",
+  version: "sales-form-version",
+} as const;
+
+const SCHEMA_VERSION = "sales_v1";
+const isBrowser = typeof window !== "undefined";
+
+function readJSON<T>(key: string, fallback: T): T {
+  if (!isBrowser) return fallback;
+  try {
+    const raw = window.localStorage.getItem(key);
+    return raw ? (JSON.parse(raw) as T) : fallback;
+  } catch {
+    return fallback;
+  }
+}
+function writeJSON(key: string, value: unknown) {
+  if (!isBrowser) return;
+  try {
+    window.localStorage.setItem(key, JSON.stringify(value));
+  } catch (e) {
+    console.error("persist error", e);
+  }
+}
+function debounce<F extends (...args: unknown[]) => void>(fn: F, ms: number) {
+  let t: ReturnType<typeof setTimeout> | null = null;
+  return (...args: Parameters<F>) => {
+    if (t) clearTimeout(t);
+    t = setTimeout(() => fn(...args), ms);
+  };
+}
+
+// =====================================================================
+
 export function SalesForm() {
-  const [step, setStep] = useState(1);
-  const [formData, setFormData] = useState<SalesFormData>({
-    date: new Date().toISOString().split("T")[0],
-    items: [],
+  // ---- hydrated initial state (no flicker on refresh) ----
+  const [step, setStep] = useState<number>(() => {
+    const saved = isBrowser ? window.localStorage.getItem(LS.step) : null;
+    return saved ? parseInt(saved, 10) : 1;
   });
-  const [orderFormData, setOrderFormData] = useState<OrderRow[]>([]);
+
+  const [formData, setFormData] = useState<SalesFormData>(() => {
+    const ver = isBrowser ? window.localStorage.getItem(LS.version) : null;
+    if (ver === SCHEMA_VERSION) {
+      return readJSON<SalesFormData>(LS.sales, {
+        date: new Date().toISOString().split("T")[0],
+        items: [],
+      });
+    }
+    if (isBrowser) window.localStorage.setItem(LS.version, SCHEMA_VERSION);
+    return { date: new Date().toISOString().split("T")[0], items: [] };
+  });
+
+  const [orderFormData, setOrderFormData] = useState<OrderRow[]>(() => {
+    const ver = isBrowser ? window.localStorage.getItem(LS.version) : null;
+    if (ver === SCHEMA_VERSION) return readJSON<OrderRow[]>(LS.orders, []);
+    return [];
+  });
+
   const [headerErrors, setHeaderErrors] = useState<Record<string, string>>({});
 
+  // Modal
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [modalItems, setModalItems] = useState<OrderRow[]>([]);
   const [modalErrors, setModalErrors] = useState<Record<number, Record<string, string>>>({});
 
-  
-  // ---- validation utils (pure; no toasts) ----
   // ---- validation utils (pure; no toasts) ----
   type AnyRow = Record<string, string | boolean | undefined>;
+  const isEmpty = useCallback(
+    (v: unknown) => v === undefined || v === null || (typeof v === "string" && v.trim() === ""),
+    []
+  );
 
-  const isEmpty = useCallback((v: unknown) =>
-    v === undefined || v === null || (typeof v === "string" && v.trim() === ""), []);
+  const rowHasAnyValue = useCallback(
+    <T extends AnyRow,>(row: T, cols: ReadonlyArray<KeyedColumnDef<Extract<keyof T, string>>>) => cols.some(c => !isEmpty(row[c.key as keyof T])),
+    [isEmpty]
+  );
 
-  const rowHasAnyValue = useCallback(<T extends AnyRow,>(
-    row: T,
-    cols: ReadonlyArray<KeyedColumnDef<Extract<keyof T, string>>>
-  ) => cols.some(c => !isEmpty(row[c.key as keyof T])), [isEmpty]);
-
-  const computeItemErrors = useCallback(<T extends AnyRow,>(
-    items: T[],
-    cols: ReadonlyArray<KeyedColumnDef<Extract<keyof T, string>>> = SALE_COLS as unknown as ReadonlyArray<KeyedColumnDef<Extract<keyof T, string>>>
-  ) => {
-    const errs: Record<number, Record<string, string>> = {};
-    items.forEach((row, idx) => {
-      if (!rowHasAnyValue(row, cols)) return;
-      const rowErrs: Record<string, string> = {};
-      for (const col of cols) {
-        const key = col.key as keyof T;
-        const value = row[key];
-        if (col.required && isEmpty(value)) {
-          rowErrs[col.key] = `${col.label} is required`;
+  const computeItemErrors = useCallback(
+    <T extends AnyRow,>(
+      items: T[],
+      cols: ReadonlyArray<KeyedColumnDef<Extract<keyof T, string>>>
+    ) => {
+      const errs: Record<number, Record<string, string>> = {};
+      items.forEach((row, idx) => {
+        if (!rowHasAnyValue(row, cols)) return;
+        const rowErrs: Record<string, string> = {};
+        for (const col of cols) {
+          const key = col.key as keyof T;
+          const value = row[key];
+          if (col.required && isEmpty(value)) {
+            rowErrs[col.key] = `${col.label} is required`;
+          }
         }
-      }
-      if (Object.keys(rowErrs).length) errs[idx] = rowErrs;
-    });
-    return errs;
-  }, [isEmpty, rowHasAnyValue]);
+        if (Object.keys(rowErrs).length) errs[idx] = rowErrs;
+      });
+      return errs;
+    },
+    [isEmpty, rowHasAnyValue]
+  );
 
-  // Live, derived row errors and step-1 readiness
-  const itemErrors = useMemo(() => computeItemErrors(formData.items, SALE_COLS), [formData.items, computeItemErrors]);
+  // Live, derived row errors and step-1 readiness (for SALES table)
+  const itemErrors = useMemo(
+    () => computeItemErrors(formData.items, SALE_COLS),
+    [formData.items, computeItemErrors]
+  );
   const hasAnyFilledRow = formData.items.some((row) => rowHasAnyValue(row, SALE_COLS));
   const isHeaderValid = !!formData.date;
   const isStep1Valid = isHeaderValid && hasAnyFilledRow && Object.keys(itemErrors).length === 0;
+
+  // ---- persistence (debounced) ----
+  useEffect(() => {
+    if (!isBrowser) return;
+    window.localStorage.setItem(LS.step, String(step));
+  }, [step]);
+
+  const saveSalesDebounced = useMemo(
+    () =>
+      debounce((data: SalesFormData) => {
+        writeJSON(LS.sales, data);
+        if (isBrowser) window.localStorage.setItem(LS.version, SCHEMA_VERSION);
+      }, 300),
+    []
+  );
+  const saveOrdersDebounced = useMemo(
+    () =>
+      debounce((rows: OrderRow[]) => {
+        writeJSON(LS.orders, rows);
+        if (isBrowser) window.localStorage.setItem(LS.version, SCHEMA_VERSION);
+      }, 300),
+    []
+  );
+
+  useEffect(() => {
+    saveSalesDebounced(formData);
+  }, [formData, saveSalesDebounced]);
+
+  useEffect(() => {
+    saveOrdersDebounced(orderFormData);
+  }, [orderFormData, saveOrdersDebounced]);
 
   // ---- Modal Handlers ----
   const validateModalItems = () => {
@@ -177,7 +266,7 @@ export function SalesForm() {
 
   const handleModalSubmit = () => {
     if (!validateModalItems()) {
-      toast.error("Please fix errors in the modal before submitting");
+      toast.error("Please fix errors in the order entries before adding.");
       return;
     }
     if (modalItems.length === 0) {
@@ -189,15 +278,12 @@ export function SalesForm() {
       toast.error("Please add at least one complete entry");
       return;
     }
-    
+
     const mappedSalesRows = filledOrders.map(mapOrderToSales);
 
-    setFormData(prev => ({
-      ...prev,
-      items: [...prev.items, ...mappedSalesRows],
-    }));
-    
-    setOrderFormData(modalItems);
+    setFormData(prev => ({ ...prev, items: [...prev.items, ...mappedSalesRows] }));
+    setOrderFormData(prev => [...prev, ...filledOrders]);
+
     setModalItems([]);
     setModalErrors({});
     setIsModalOpen(false);
@@ -206,7 +292,6 @@ export function SalesForm() {
 
   // ---- Navigation Handlers ----
   const handleNext = () => {
-    // extra guard if someone bypasses the disabled button
     if (!isStep1Valid) {
       toast.error("Please complete required fields in the table and date.");
       return;
@@ -214,22 +299,28 @@ export function SalesForm() {
     setStep(2);
   };
 
-  // ---- Submission Handler ---- 
+  // ---- Submission Handler ----
   const handleSubmit = async () => {
     try {
+      // TODO: integrate with backend API here
       toast.success("Sales entry created successfully!");
-      setFormData({
-        date: new Date().toISOString().split("T")[0],
-        items: [],
-      });
+      // clear draft on success
+      if (isBrowser) {
+        window.localStorage.removeItem(LS.sales);
+        window.localStorage.removeItem(LS.orders);
+        window.localStorage.removeItem(LS.step);
+        window.localStorage.setItem(LS.version, SCHEMA_VERSION);
+      }
+      setFormData({ date: new Date().toISOString().split("T")[0], items: [] });
+      setOrderFormData([]);
       setHeaderErrors({});
       setStep(1);
-      //TODO: 
-      // integrate with backend API here
     } catch {
       toast.error("Failed to create sales entry");
     }
   };
+
+  // =====================================================================
 
   return (
     <div className="space-y-6">
@@ -259,6 +350,7 @@ export function SalesForm() {
             <CardTitle>IK Daily Sales Entry</CardTitle>
             <CardDescription>Fill the date and at least one line item</CardDescription>
           </CardHeader>
+
           {/* BUSINESS DATE */}
           <CardContent className="space-y-4">
             <div className="grid grid-cols-2 gap-4">
@@ -294,7 +386,7 @@ export function SalesForm() {
                     Use the spreadsheet below to add multiple entries at once. Click "Add to Sales" when done.
                   </DialogDescription>
                 </DialogHeader>
-                
+
                 <div className="flex-1 overflow-auto">
                   <div className="w-full overflow-x-auto">
                     <div className="w-max min-w-full">
@@ -308,14 +400,14 @@ export function SalesForm() {
                     </div>
                   </div>
                 </div>
-                
+
                 <div className="flex justify-between items-center pt-4 border-t">
                   <span className="text-sm text-muted-foreground">
                     {modalItems.filter((r) => rowHasAnyValue(r, ORDER_COLS)).length} filled row(s)
                   </span>
                   <div className="flex gap-2">
-                    <Button 
-                      variant="outline" 
+                    <Button
+                      variant="outline"
                       onClick={() => {
                         setIsModalOpen(false);
                         setModalItems([]);
@@ -324,7 +416,7 @@ export function SalesForm() {
                     >
                       Cancel
                     </Button>
-                    <Button 
+                    <Button
                       onClick={handleModalSubmit}
                       disabled={modalItems.filter((r) => rowHasAnyValue(r, ORDER_COLS)).length === 0}
                     >
@@ -345,7 +437,7 @@ export function SalesForm() {
                   tableKey={salesTableKey}
                   columns={sale_table_columns}
                   data={formData.items}
-                  onChange={(items) => setFormData({ ...formData, items: items as SalesRow[]})}
+                  onChange={(items) => setFormData({ ...formData, items: items as SalesRow[] })}
                   errors={itemErrors} // live errors
                 />
               </div>
@@ -361,59 +453,36 @@ export function SalesForm() {
             <CardTitle>Ready to Submit</CardTitle>
             <CardDescription>Date: {formData.date} · Rows: {formData.items.length}</CardDescription>
           </CardHeader>
+
+          {/* Issues Panel (only shows places needing updates) */}
+          {Object.keys(itemErrors).length > 0 && (
+            <CardContent className="mb-2">
+              <div className="rounded-md border border-destructive/30 bg-destructive/5 p-3 text-sm">
+                <p className="font-medium text-destructive mb-2">Please fix these before submitting:</p>
+                <ul className="list-disc pl-5 space-y-1">
+                  {Object.entries(itemErrors).map(([rowIdx, errs]) => (
+                    <li key={rowIdx}>
+                      Row {Number(rowIdx) + 1}:{" "}
+                      {Object.entries(errs)
+                        .map(([key, msg]) => `${SALE_COLS.find(c => c.key === key)?.label ?? key} → ${msg}`)
+                        .join("; ")}
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            </CardContent>
+          )}
+
           {/* SALES TABLE */}
-          <CardContent>
-            <div className="w-full overflow-x-auto">
-                <table className="w-full border-collapse border border-border">
-                <thead>
-                  <tr className="bg-primary p-2 text-left text-center text-primary-foreground font-semibold">
-                  <th colSpan={SALE_COLS.length}>SALES</th>
-                  </tr>
-                  <tr className="bg-muted">
-                  {SALE_COLS.map((col) => (
-                    <th key={col.key} className="border border-border p-2 text-left text-sm font-medium">
-                    {col.label}
-                    </th>
-                  ))}
-                  </tr>
-                </thead>
-                <tbody>
-                  {formData.items.map((row, idx) => (
-                    <tr key={idx} className="hover:bg-muted/50">
-                      {SALE_COLS.map((col) => {
-                        const value = row[col.key as keyof SalesRow];
-                        let displayValue: string;
-                        
-                        if (col.type === 'boolean') {
-                          displayValue = value ? 'Yes' : 'No';
-                        } else if (value === undefined || value === null || value === '') {
-                          displayValue = '-';
-                        } else {
-                          displayValue = String(value);
-                        }
-                        
-                        return (
-                          <td key={col.key} className="border border-border p-2 text-sm">
-                            {displayValue}
-                          </td>
-                        );
-                      })}
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          </CardContent>
-          {/* ORDER TABLE */}
           <CardContent>
             <div className="w-full overflow-x-auto">
               <table className="w-full border-collapse border border-border">
                 <thead>
                   <tr className="bg-primary p-2 text-left text-center text-primary-foreground font-semibold">
-                  <th colSpan={ORDER_COLS.length}>ORDERS</th>
+                    <th colSpan={SALE_COLS.length}>SALES</th>
                   </tr>
                   <tr className="bg-muted">
-                    {ORDER_COLS.map((col) => (
+                    {SALE_COLS.map((col) => (
                       <th key={col.key} className="border border-border p-2 text-left text-sm font-medium">
                         {col.label}
                       </th>
@@ -421,15 +490,24 @@ export function SalesForm() {
                   </tr>
                 </thead>
                 <tbody>
-                  {orderFormData.map((row, idx) => (
+                  {formData.items.map((row, idx) => (
                     <tr key={idx} className="hover:bg-muted/50">
-                      {ORDER_COLS.map((col) => {
-                        const value = row[col.key as keyof OrderRow];
-                        // const displayValue: string;
-                        const displayValue = String(value);
-                        
+                      {SALE_COLS.map((col) => {
+                        const value = row[col.key as keyof SalesRow];
+                        const hasErr = itemErrors[idx]?.[col.key];
+                        const displayValue =
+                          col.type === "boolean"
+                            ? (value ? "Yes" : "No")
+                            : value === undefined || value === null || value === ""
+                            ? "—"
+                            : String(value);
                         return (
-                          <td key={col.key} className="border border-border p-2 text-sm">
+                          <td
+                            key={col.key}
+                            className={`border border-border p-2 text-sm ${
+                              hasErr ? "bg-destructive/10 text-destructive" : ""
+                            }`}
+                          >
                             {displayValue}
                           </td>
                         );
@@ -440,27 +518,84 @@ export function SalesForm() {
               </table>
             </div>
           </CardContent>
+
+          {/* ORDER TABLE (read-only preview of what was added) */}
+          {orderFormData.length > 0 && (
+            <CardContent>
+              <div className="w-full overflow-x-auto">
+                <table className="w-full border-collapse border border-border">
+                  <thead>
+                    <tr className="bg-primary p-2 text-left text-center text-primary-foreground font-semibold">
+                      <th colSpan={ORDER_COLS.length}>ORDERS</th>
+                    </tr>
+                    <tr className="bg-muted">
+                      {ORDER_COLS.map((col) => (
+                        <th key={col.key} className="border border-border p-2 text-left text-sm font-medium">
+                          {col.label}
+                        </th>
+                      ))}
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {orderFormData.map((row, idx) => (
+                      <tr key={idx} className="hover:bg-muted/50">
+                        {ORDER_COLS.map((col) => {
+                          const value = row[col.key as keyof OrderRow];
+                          const displayValue = value === undefined || value === null || value === "" ? "—" : String(value);
+                          return (
+                            <td key={col.key} className="border border-border p-2 text-sm">
+                              {displayValue}
+                            </td>
+                          );
+                        })}
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </CardContent>
+          )}
         </Card>
       )}
 
       {/* Navigation */}
-      <div className="flex justify-between">
-        <Button variant="outline" onClick={() => setStep(step - 1)} disabled={step === 1}>
-          <ChevronLeft className="h-4 w-4 mr-2" />
-          Previous
-        </Button>
+      <div className="flex items-center justify-between gap-2">
+        <div className="flex items-center gap-2">
+          <Button
+            variant="outline"
+            onClick={() => {
+              if (!isBrowser) return;
+              window.localStorage.removeItem(LS.sales);
+              window.localStorage.removeItem(LS.orders);
+              window.localStorage.removeItem(LS.step);
+              window.localStorage.removeItem(LS.version);
+              setFormData({ date: new Date().toISOString().split("T")[0], items: [] });
+              setOrderFormData([]);
+              setStep(1);
+            }}
+          >
+            Reset Draft
+          </Button>
+        </div>
 
-        {step === 1 ? (
-          <Button onClick={handleNext} disabled={!isStep1Valid}>
-            Next
-            <ChevronRight className="h-4 w-4 ml-2" />
+        <div className="flex items-center gap-2">
+          <Button variant="outline" onClick={() => setStep(step - 1)} disabled={step === 1}>
+            <ChevronLeft className="h-4 w-4 mr-2" />
+            Previous
           </Button>
-        ) : (
-          <Button onClick={handleSubmit}>
-            <Check className="h-4 w-4 mr-2" />
-            Submit Sales Entry
-          </Button>
-        )}
+
+          {step === 1 ? (
+            <Button onClick={handleNext} disabled={!isStep1Valid}>
+              Next
+              <ChevronRight className="h-4 w-4 ml-2" />
+            </Button>
+          ) : (
+            <Button onClick={handleSubmit} disabled={Object.keys(itemErrors).length > 0}>
+              <Check className="h-4 w-4 mr-2" />
+              Submit Sales Entry
+            </Button>
+          )}
+        </div>
       </div>
     </div>
   );
