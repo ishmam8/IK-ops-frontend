@@ -4,6 +4,7 @@ import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Plus, Trash2, Copy } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { table } from "console";
 
 export interface SpreadsheetRow {
   [key: string]: string | boolean | undefined;
@@ -159,7 +160,7 @@ export function SpreadsheetGrid<T extends SpreadsheetRow>({ tableKey, columns, d
   }, {} as Record<string, number>);
 
   return (
-    <div className="space-y-4">
+    <div className="space-y-1 mt-4">
       <div className="flex gap-2">
         <Button onClick={addRow} size="sm" variant="outline">
           <Plus className="h-4 w-4 mr-2" />
