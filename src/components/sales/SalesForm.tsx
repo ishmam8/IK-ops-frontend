@@ -249,6 +249,13 @@ export function SalesForm() {
     []
   );
 
+  const totalSalesAmount = useMemo(() => {
+    return formData.items.reduce((sum, row) => {
+      const amount = parseFloat(row.cash_card_payment) || 0;
+      return sum + amount;
+    }, 0);
+  }, [formData.items]);
+
   useEffect(() => {
     saveSalesDebounced(formData);
   }, [formData, saveSalesDebounced]);
@@ -514,6 +521,15 @@ export function SalesForm() {
                       })}
                     </tr>
                   ))}
+                  <tr className="bg-primary/10 font-semibold">
+                    <td colSpan={10} className="border border-border p-2 text-sm text-right">
+                      Total:
+                    </td>
+                    <td className="border border-border p-2 text-sm">
+                      {totalSalesAmount.toFixed(2)}
+                    </td>
+                    
+                  </tr>
                 </tbody>
               </table>
             </div>

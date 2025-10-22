@@ -134,6 +134,14 @@ export function PayoutForm() {
     () => computeItemErrors(formData.items, PAYOUT_COLS),
     [formData.items, computeItemErrors]
   );
+
+  const totalAmount = useMemo(() => {
+    return formData.items.reduce((sum, row) => {
+      const amount = parseFloat(row.amount) || 0;
+      return sum + amount;
+    }, 0);
+  }, [formData.items]);
+  
   const hasAnyFilledRow = formData.items.some((row) => rowHasAnyValue(row, PAYOUT_COLS));
   const isHeaderValid = !!formData.date;
   const isStep1Valid = isHeaderValid && hasAnyFilledRow && Object.keys(itemErrors).length === 0;
@@ -318,6 +326,17 @@ export function PayoutForm() {
                       })}
                     </tr>
                   ))}
+                  <tr className="bg-primary/10 font-semibold">
+                    <td colSpan={2} className="border border-border p-2 text-sm text-right">
+                      Total:
+                    </td>
+                    <td className="border border-border p-2 text-sm">
+                      {totalAmount.toFixed(2)}
+                    </td>
+                    <td className="border border-border p-2 text-sm">
+                      {/* Empty cell for Transaction Type column */}
+                    </td>
+                  </tr>
                 </tbody>
               </table>
             </div>
