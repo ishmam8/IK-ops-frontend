@@ -6,6 +6,7 @@ import { Label } from "@/components/ui/label";
 import { SpreadsheetGrid, ColumnDef } from "@/components/spreadsheet/SpreadsheetGrid";
 import { ChevronLeft, ChevronRight, Check, PlusCircle } from "lucide-react";
 import { Dialog, DialogTrigger, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
+import { createSales } from "@/features/sales/api/sales.api";
 import { toast } from "sonner";
 
 const salesTableKey = "sales-entry-grid";
@@ -310,7 +311,17 @@ export function SalesForm() {
   const handleSubmit = async () => {
     try {
       // TODO: integrate with backend API here
+      try {
+        const res = await createSales({ date: formData.date, items: formData.items });
+        toast.success(`Created ${res.id} for ${res.date} (${res.count} rows)`);
+        // clear draft, reset, etc.
+      } catch (e) {
+        console.log("create sales error", e);
+        toast.error(e?.message ?? "Failed to create sales entry");
+      }
+      
       toast.success("Sales entry created successfully!");
+      
       // clear draft on success
       if (isBrowser) {
         window.localStorage.removeItem(LS.sales);

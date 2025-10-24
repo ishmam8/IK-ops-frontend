@@ -2,6 +2,7 @@ import { ReactNode, useState } from "react";
 import { NavLink } from "react-router-dom";
 import { LayoutDashboard, ShoppingCart, Receipt, Package, Menu, X  } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { useAuth } from '@/features/auth/AuthProvider';
 
 interface DashboardLayoutProps {
   children: ReactNode;
@@ -11,10 +12,12 @@ const navItems = [
   { to: "/", icon: LayoutDashboard, label: "Dashboard" },
   { to: "/sales", icon: ShoppingCart, label: "Sales" },
   { to: "/payouts", icon: Receipt, label: "Payouts" },
+  { to: "/logout", icon: Package, label: "Logout" },
 ];
 
 export function DashboardLayout({ children }: DashboardLayoutProps) {
   const [isSidebarOpen, setIsSidebarOpen] = useState(true);
+  const { user, logout } = useAuth();
 
   return (
     <div className="flex min-h-screen w-full bg-background">
@@ -43,6 +46,12 @@ export function DashboardLayout({ children }: DashboardLayoutProps) {
                     : "text-sidebar-foreground hover:bg-sidebar-accent hover:text-sidebar-accent-foreground"
                 )
               }
+              onClick={(e) => {
+                if (item.to === "/logout") {
+                  e.preventDefault();
+                  logout();
+                }
+              }}
             >
               <item.icon className="h-5 w-5" />
               <span>{item.label}</span>

@@ -4,10 +4,14 @@ import { TooltipProvider } from "@/components/ui/tooltip";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { BrowserRouter, Routes, Route } from "react-router-dom";
 import { DashboardLayout } from "./components/layout/DashboardLayout";
+import { AuthProvider } from '@/features/auth/AuthProvider';
 import Dashboard from "./pages/Dashboard";
 import Sales from "./pages/Sales";
 import Payouts from "./pages/Payout";
 import NotFound from "./pages/NotFound";
+import { LoginPage } from "./pages/LoginPage";
+import { TestAuth } from "./pages/TestAuth";
+import { ProtectedRoute } from "./components/ProtectedRoutes";
 
 const queryClient = new QueryClient();
 
@@ -16,15 +20,19 @@ const App = () => (
     <TooltipProvider>
       <Toaster />
       <Sonner />
-      <BrowserRouter>
-        <Routes>
-          <Route path="/" element={<DashboardLayout><Dashboard /></DashboardLayout>} />
-          <Route path="/sales" element={<DashboardLayout><Sales /></DashboardLayout>} />
-          <Route path="/payouts" element={<DashboardLayout><Payouts /></DashboardLayout>} />
-          {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
-          <Route path="*" element={<NotFound />} />
-        </Routes>
-      </BrowserRouter>
+      <AuthProvider>
+        <BrowserRouter>
+          <Routes>
+            <Route path="/login" element={<LoginPage />} />
+            <Route path="/test" element={<TestAuth />} />
+            <Route path="/" element={<ProtectedRoute><DashboardLayout><Dashboard /></DashboardLayout></ProtectedRoute>} />
+            <Route path="/sales" element={<ProtectedRoute><DashboardLayout><Sales /></DashboardLayout></ProtectedRoute>} />
+            <Route path="/payouts" element={<ProtectedRoute><DashboardLayout><Payouts /></DashboardLayout></ProtectedRoute>} />
+            {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
+            <Route path="*" element={<NotFound />} />
+          </Routes>
+        </BrowserRouter>
+      </AuthProvider>
     </TooltipProvider>
   </QueryClientProvider>
 );
