@@ -271,31 +271,54 @@ export function SalesForm() {
     setModalErrors(errs);
     return Object.keys(errs).length === 0;
   };
-
+  const handleOpenModal = (open: boolean) => {
+    if (open) {
+      // entering edit mode
+      setModalItems(orderFormData.length ? structuredClone(orderFormData) : []);
+    } else {
+      // closing modal without saving
+      setModalItems([]);
+      setModalErrors({});
+    }
+    setIsModalOpen(open);
+  };
   const handleModalSubmit = () => {
-    if (!validateModalItems()) {
-      toast.error("Please fix errors in the order entries before adding.");
-      return;
-    }
-    if (modalItems.length === 0) {
-      toast.error("Please add at least one entry");
-      return;
-    }
-    const filledOrders = modalItems.filter(r => rowHasAnyValue<OrderRow>(r, ORDER_COLS));
-    if (filledOrders.length === 0) {
-      toast.error("Please add at least one complete entry");
+    // validate current modal rows
+    const isValid = validateModalItems();
+    if (!isValid) {
+      toast.error("Please fix errors in the order entries before saving.");
       return;
     }
 
-    const mappedSalesRows = filledOrders.map(mapOrderToSales);
+    // keep only rows that actually have any values
+    const filledOrders = modalItems.filter(r =>
+      rowHasAnyValue<OrderRow>(r, ORDER_COLS)
+    );
 
-    setFormData(prev => ({ ...prev, items: [...prev.items, ...mappedSalesRows] }));
-    setOrderFormData(prev => [...prev, ...filledOrders]);
+    // We now ALLOW 0. 0 means "clear all orders and their linked sales".
 
-    setModalItems([]);
+    // We need both the previous orders and the new orders to sync properly.
+    setOrderFormData((prevOrders) => {
+      setFormData(prevForm => ({
+        ...prevForm,
+        items: syncSalesFromOrders(
+          prevForm.items,   // prev sales rows
+          prevOrders,       // prev orderFormData BEFORE overwrite
+          filledOrders      // new orderFormData AFTER overwrite
+        ),
+      }));
+
+      return filledOrders;
+    });
+
     setModalErrors({});
-    setIsModalOpen(false);
-    toast.success(`${mappedSalesRows.length} row(s) added to sales entry!`);
+    handleOpenModal(false);
+
+    toast.success(
+      filledOrders.length === 0
+        ? "All orders cleared and linked sales removed."
+        : `${filledOrders.length} order row(s) synced to sales.`
+    );
   };
 
   // ---- Navigation Handlers ----
@@ -314,12 +337,13 @@ export function SalesForm() {
       try {
         const res = await createSales({ date: formData.date, items: formData.items });
         toast.success(`Created ${res.id} for ${res.date} (${res.count} rows)`);
+        console.log("create sales response", res);
         // clear draft, reset, etc.
       } catch (e) {
         console.log("create sales error", e);
         toast.error(e?.message ?? "Failed to create sales entry");
       }
-      
+
       toast.success("Sales entry created successfully!");
       
       // clear draft on success
@@ -338,7 +362,119 @@ export function SalesForm() {
     }
   };
 
-  // =====================================================================
+  // HELPER METHOD //
+  // TODO: after copying a row in sales, if you delete one of the row -> corresponding order gets deleted as well
+  function syncSalesFromOrders(
+    prevSalesRows: SalesRow[],
+    prevOrders: OrderRow[],
+    updatedOrders: OrderRow[],
+  ): SalesRow[] {
+    // --- Build lookups/sets we need ---
+
+    // All invoice_numbers that were previously in orderFormData
+    const prevOrdersByInvoice = new Set(
+      prevOrders
+        .filter(o => o && o.invoice_number)
+        .map(o => o.invoice_number as string)
+    );
+
+    // Map of invoice_number -> new OrderRow after modal save
+    const updatedOrdersByInvoice = new Map<string, OrderRow>();
+    updatedOrders.forEach((o) => {
+      if (o && o.invoice_number) {
+        updatedOrdersByInvoice.set(o.invoice_number, o);
+      }
+    });
+
+    // Map of invoice_number -> existing SalesRow before sync
+    const prevSalesByInvoice = new Map<string, SalesRow>();
+    prevSalesRows.forEach((s) => {
+      if (s && s.invoice_number) {
+        prevSalesByInvoice.set(s.invoice_number, s);
+      }
+    });
+
+    const nextSales: SalesRow[] = [];
+
+    // PASS 1: keep any sales row that is *not controlled by orders*
+    // i.e. invoices that were never in orders OR are not in orders now.
+    // But careful: if an invoice *used to* be in orders and is now removed,
+    // that means the user deleted that order and wants it gone from sales too.
+    //
+    // So:
+    // - If a sale's invoice was NEVER in prevOrders, keep it. (walk-in sale)
+    // - If a sale's invoice WAS in prevOrders, but IS NOT in updatedOrders,
+    //   do NOT keep it. (the order got deleted -> drop its sale)
+    // - If a sale's invoice IS in updatedOrders, we'll handle it in PASS 2.
+    prevSalesRows.forEach((saleRow) => {
+      const invoice = saleRow.invoice_number;
+      if (!invoice) return;
+
+      const wasOrderBefore = prevOrdersByInvoice.has(invoice);
+      const isOrderNow = updatedOrdersByInvoice.has(invoice);
+
+      // Walk-in sale case:
+      //   - was never an order-backed invoice
+      //   - AND it's still not an order-backed invoice
+      //   -> keep it
+      if (!wasOrderBefore && !isOrderNow) {
+        nextSales.push(saleRow);
+      }
+
+      // Other cases:
+      // - wasOrderBefore && !isOrderNow  -> order deleted, drop this sale
+      // - isOrderNow (either new or existing) -> we'll rebuild in PASS 2
+    });
+
+    // PASS 2: upsert all invoices that are currently in updatedOrders
+    // (i.e. any order row that exists after modal save MUST have a matching Sales row)
+    updatedOrdersByInvoice.forEach((orderRow, invoice) => {
+      const regenerated = mapOrderToSales(orderRow);
+
+      if (prevSalesByInvoice.has(invoice)) {
+        const existing = prevSalesByInvoice.get(invoice)!;
+
+        const merged: SalesRow = {
+          ...existing,
+          ...regenerated,
+
+          // preserve cashier-only editable stuff
+          sold_by: existing.sold_by || regenerated.sold_by,
+          gold_weight: existing.gold_weight || regenerated.gold_weight,
+          kdm_vori: existing.kdm_vori || regenerated.kdm_vori,
+          is_rst: existing.is_rst ?? regenerated.is_rst,
+          cash_card_payment: existing.cash_card_payment || "",
+          gold_payment: existing.gold_payment || "",
+          rst_payment: existing.rst_payment || "",
+          rst_advanced: existing.rst_advanced || "",
+          customer_due: existing.customer_due || "",
+          due_by: existing.due_by || "",
+          payment_type: existing.payment_type || "",
+        };
+
+        nextSales.push(merged);
+      } else {
+        // brand new order -> create brand new sale
+        nextSales.push(regenerated);
+      }
+    });
+
+    return nextSales;
+  }
+
+
+  function removeInvoiceEverywhere(invoice: string) {
+    setFormData(prev => ({
+      ...prev,
+      items: prev.items.filter(sale => sale.invoice_number !== invoice),
+    }));
+
+    setOrderFormData(prev =>
+      prev.filter(order => order.invoice_number !== invoice)
+    );
+  }
+
+  // ================================================================================ //
 
   return (
     <div className="space-y-6">
@@ -390,11 +526,11 @@ export function SalesForm() {
 
           {/* ADD MODAL TRIGGER */}
           <CardContent>
-            <Dialog open={isModalOpen} onOpenChange={setIsModalOpen}>
+            <Dialog open={isModalOpen} onOpenChange={handleOpenModal}>
               <DialogTrigger asChild>
                 <Button size="sm" variant="default">
                   <PlusCircle className="h-4 w-4 mr-2" />
-                  Add Order
+                  Add/Edit Order
                 </Button>
               </DialogTrigger>
               <DialogContent className="max-w-[95vw] max-h-[85vh] flex flex-col">
@@ -427,19 +563,17 @@ export function SalesForm() {
                     <Button
                       variant="outline"
                       onClick={() => {
-                        setIsModalOpen(false);
-                        setModalItems([]);
-                        setModalErrors({});
+                        handleOpenModal(false)
                       }}
                     >
                       Cancel
                     </Button>
                     <Button
                       onClick={handleModalSubmit}
-                      disabled={modalItems.filter((r) => rowHasAnyValue(r, ORDER_COLS)).length === 0}
+                      disabled={false}
                     >
                       <Check className="h-4 w-4 mr-2" />
-                      Add to Sales ({modalItems.filter((r) => rowHasAnyValue(r, ORDER_COLS)).length})
+                      Save & Sync to Sales ({modalItems.filter((r) => rowHasAnyValue(r, ORDER_COLS)).length})
                     </Button>
                   </div>
                 </div>
@@ -456,6 +590,16 @@ export function SalesForm() {
                   columns={sale_table_columns}
                   data={formData.items}
                   onChange={(items) => setFormData({ ...formData, items: items as SalesRow[] })}
+                  onRowDeleteSyncOrder={(deletedRow) => {
+                    // deletedRow is a SalesRow
+                    const invoice = deletedRow.invoice_number;
+                    if (!invoice) return;
+
+                    // This will remove BOTH:
+                    // - the sales row from formData.items
+                    // - the matching order row from orderFormData
+                    removeInvoiceEverywhere(invoice);
+                  }}
                   errors={itemErrors} // live errors
                 />
               </div>

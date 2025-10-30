@@ -26,9 +26,11 @@ interface SpreadsheetGridProps<T extends SpreadsheetRow> {
   data: T[];
   onChange: (data: T[]) => void;
   errors?: Record<number, Record<string, string>>;
+  onRowDeleteSyncOrder?: (deletedRow: T) => void;
 }
 
-export function SpreadsheetGrid<T extends SpreadsheetRow>({ tableKey, columns, data, onChange, errors = {} }: SpreadsheetGridProps<T>) {
+export function SpreadsheetGrid<T extends SpreadsheetRow>(
+  { tableKey, columns, data, onChange, onRowDeleteSyncOrder, errors = {} }: SpreadsheetGridProps<T>) {
   const [focusedCell, setFocusedCell] = useState<{ row: number; col: number } | null>(null);
   const cellRefs = useRef<{ [key: string]: HTMLInputElement | null }>({});
 
@@ -45,7 +47,16 @@ export function SpreadsheetGrid<T extends SpreadsheetRow>({ tableKey, columns, d
   };
 
   const deleteRow = (index: number) => {
-    onChange(data.filter((_, i) => i !== index));
+    const rowBeingDeleted = data[index];
+
+    // tell parent first
+    if (onRowDeleteSyncOrder) {
+      onRowDeleteSyncOrder(rowBeingDeleted);
+    }
+
+    // now update this grid's data
+    const newData = data.filter((_, i) => i !== index);
+    onChange(newData);
   };
 
   const duplicateRow = (index: number) => {
@@ -280,7 +291,16 @@ export function SpreadsheetGrid<T extends SpreadsheetRow>({ tableKey, columns, d
                     <Button
                       size="sm"
                       variant="ghost"
-                      onClick={() => deleteRow(rowIndex)}
+                      onClick={() => {
+                        const inv = rowIndex['invoice_number'];
+                        const ok = window.confirm(
+                          inv
+                            ? `Delete invoice ${inv} from BOTH Sales and Orders?`
+                            : "Delete this row?"
+                        );
+                        if (!ok) return;
+                        deleteRow(rowIndex);
+                      }}
                       className="h-8 w-8 p-0 hover:bg-destructive/10 hover:text-destructive"
                     >
                       <Trash2 className="h-4 w-4" />
