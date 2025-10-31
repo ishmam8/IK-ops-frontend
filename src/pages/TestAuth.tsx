@@ -35,8 +35,9 @@ export function TestAuth() {
     try {
       const result = await createSales({
         date: "2025-10-23",
-        items: [
+        sales: [
           { product: "Gold Ring", 
+            rst_order: 'SALE',
             quantity: '2', 
             price: '150.0',
             total: '300.0',
@@ -47,7 +48,6 @@ export function TestAuth() {
             sold_by: "string",
             gold_weight: "string",
             kdm_vori: "string",
-            is_rst: false,
             sale_price: "string",
             cash_card_payment: "string",
             gold_payment: "string",
@@ -57,7 +57,8 @@ export function TestAuth() {
             due_by: "string",
             payment_type: "string",
             }
-        ]
+        ],
+        orders: [],
       });
       setTestResult(JSON.stringify(result, null, 2));
       console.log('✅ Protected endpoint success:', result);

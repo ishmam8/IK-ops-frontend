@@ -292,7 +292,7 @@ export function SpreadsheetGrid<T extends SpreadsheetRow>(
                       size="sm"
                       variant="ghost"
                       onClick={() => {
-                        const inv = rowIndex['invoice_number'];
+                        const inv = row["invoice_number"];
                         const ok = window.confirm(
                           inv
                             ? `Delete invoice ${inv} from BOTH Sales and Orders?`

@@ -15,6 +15,7 @@ const orderTableKey = "order-entry-grid";
 // ---------- Types ----------
 export interface SalesRow {
   invoice_number: string;
+  rst_order: string;
   customer: string;
   quantity: string;
   item_code: string;
@@ -22,7 +23,6 @@ export interface SalesRow {
   sold_by: string;
   gold_weight: string;
   kdm_vori: string;
-  is_rst: boolean;
   sale_price: string;
   cash_card_payment: string;
   gold_payment?: string;
@@ -59,13 +59,19 @@ type ColumnsOf<T> = ReadonlyArray<KeyedColumnDef<Extract<keyof T, string>>>;
 
 const SALE_COLS = [
   { key: "invoice_number",     label: "Invoice #",          type: "text",    width: "w-28", required: true },
+  { key: "rst_order",          label: "RST / ORDER",        type: "select",  width: "w-28", required: true,
+    options: [
+      { label: "SALE",  value: "SALE" },
+      { label: "RST",   value: "RST" },
+      { label: "ORDER", value: "ORDER" },
+    ],
+  },
   { key: "customer",           label: "Customer Name",      type: "text",    width: "w-40", required: true },
   { key: "quantity",           label: "Quantity",           type: "text",    width: "w-28", required: true },
   { key: "item_code",          label: "Item Code",          type: "text",    width: "w-32" },
   { key: "item",               label: "Item",               type: "text",    width: "w-48" },
   { key: "sold_by",            label: "Sold By",            type: "text",    width: "w-32", required: true },
   { key: "gold_weight",        label: "Gold Weight",        type: "text",    width: "w-32" },
-  { key: "is_rst",             label: "IS RST",             type: "boolean", width: "w-20" },
   { key: "kdm_vori",           label: "KDM-Vori",           type: "text",    width: "w-28", required: true },
   { key: "sale_price",         label: "Sale Price",         type: "text",    width: "w-32" },
   { key: "cash_card_payment",  label: "Cash/Card Payment",  type: "text",    width: "w-36", required: true },
@@ -95,6 +101,7 @@ const order_table_columns: ColumnDef[] = ORDER_COLS;
 
 const mapOrderToSales = (o: OrderRow): SalesRow => ({
   invoice_number: o.invoice_number ?? "",
+  rst_order: "ORDER",
   customer: o.customer ?? "",
   quantity: o.quantity ?? "",
   item_code: o.item_code ?? "",
@@ -102,7 +109,6 @@ const mapOrderToSales = (o: OrderRow): SalesRow => ({
   sold_by: "",           // PLACEHOLDER: set from current user / selector
   gold_weight: "",       // PLACEHOLDER
   kdm_vori: "",          // PLACEHOLDER
-  is_rst: false,         // PLACEHOLDER
   sale_price: "",
   cash_card_payment: "", // PLACEHOLDER
   gold_payment: "",
@@ -333,17 +339,10 @@ export function SalesForm() {
   // ---- Submission Handler ----
   const handleSubmit = async () => {
     try {
-      // TODO: integrate with backend API here
-      try {
-        const res = await createSales({ date: formData.date, items: formData.items });
-        toast.success(`Created ${res.id} for ${res.date} (${res.count} rows)`);
-        console.log("create sales response", res);
-        // clear draft, reset, etc.
-      } catch (e) {
-        console.log("create sales error", e);
-        toast.error(e?.message ?? "Failed to create sales entry");
-      }
+      const res = await createSales({ date: formData.date, sales: formData.items, orders: orderFormData });
+      toast.success(`Created ${res.id} for ${res.date} (${res.count} rows)`);
 
+      console.log("create sales response", res);
       toast.success("Sales entry created successfully!");
       
       // clear draft on success
@@ -357,7 +356,8 @@ export function SalesForm() {
       setOrderFormData([]);
       setHeaderErrors({});
       setStep(1);
-    } catch {
+    } catch (e) {
+      console.log("create sales error", e);
       toast.error("Failed to create sales entry");
     }
   };
@@ -440,9 +440,9 @@ export function SalesForm() {
 
           // preserve cashier-only editable stuff
           sold_by: existing.sold_by || regenerated.sold_by,
+          rst_order: existing.rst_order || regenerated.rst_order,
           gold_weight: existing.gold_weight || regenerated.gold_weight,
           kdm_vori: existing.kdm_vori || regenerated.kdm_vori,
-          is_rst: existing.is_rst ?? regenerated.is_rst,
           cash_card_payment: existing.cash_card_payment || "",
           gold_payment: existing.gold_payment || "",
           rst_payment: existing.rst_payment || "",
@@ -658,11 +658,11 @@ export function SalesForm() {
                         const value = row[col.key as keyof SalesRow];
                         const hasErr = itemErrors[idx]?.[col.key];
                         const displayValue =
-                          col.type === "boolean"
-                            ? (value ? "Yes" : "No")
-                            : value === undefined || value === null || value === ""
+                          value === undefined || value === null || value === "" 
                             ? "—"
-                            : String(value);
+                            : typeof value === "boolean"
+                              ? value ? "Yes" : "No"
+                              : String(value);
                         return (
                           <td
                             key={col.key}
