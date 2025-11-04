@@ -1,4 +1,5 @@
 import { SalesForm } from "@/components/sales/SalesForm";
+import SalesTable from "@/components/sales/SalesTable";
 
 export default function Sales() {
   return (
@@ -9,6 +10,7 @@ export default function Sales() {
       </div>
 
       <SalesForm />
+      <SalesTable />
     </div>
   );
 }
