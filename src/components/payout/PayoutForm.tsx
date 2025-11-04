@@ -6,13 +6,14 @@ import { Label } from "@/components/ui/label";
 import { SpreadsheetGrid, ColumnDef } from "@/components/spreadsheet/SpreadsheetGrid";
 import { ChevronLeft, ChevronRight, Check } from "lucide-react";
 import { toast } from "sonner";
+import { createPayouts } from "@/features/payouts/api/payouts.api";
 
 // ---------- Types ----------
 export interface PayoutRow {
   expense_type: string;
   description: string;
   amount: string;
-  transaction_type: string;
+  payment_method: string;
   [key: string]: string | boolean | undefined;
 }
 
@@ -29,7 +30,7 @@ const PAYOUT_COLS = [
   { key: "expense_type",      label: "Expense Type",     type: "text", width: "w-28", required: true },
   { key: "description",       label: "Description",      type: "text", width: "w-40", required: true },
   { key: "amount",            label: "Amount(BDT)",      type: "text", width: "w-28", required: true },
-  { key: "transaction_type",  label: "Transaction Type", type: "text", width: "w-32", required: true },
+  { key: "payment_method",  label: "Payment Method", type: "text", width: "w-32", required: true },
 ] satisfies ColumnsOf<PayoutRow>;
 
 const payout_table_columns: ColumnDef[] = PAYOUT_COLS;
@@ -176,22 +177,26 @@ export function PayoutForm() {
 
   // ---- Submission Handler ----
   const handleSubmit = async () => {
-    try {
-      // TODO: integrate with backend API here
-      toast.success("Payout entry created successfully!");
-      // clear draft on success
-      if (isBrowser) {
-        window.localStorage.removeItem(LS_KEYS.form);
-        window.localStorage.removeItem(LS_KEYS.step);
-        window.localStorage.setItem(LS_KEYS.version, SCHEMA_VERSION);
+      try {
+        const res = await createPayouts({ date: formData.date, payouts: formData.items });
+        toast.success(`Created ${res.id} for ${res.date} (${res.count} rows)`);
+  
+        console.log("create sales response", res);
+        toast.success("Sales entry created successfully!");
+        
+        // clear draft on success
+        if (isBrowser) {
+          window.localStorage.removeItem(LS_KEYS.form);
+          window.localStorage.removeItem(LS_KEYS.step);
+          window.localStorage.setItem(LS_KEYS.version, SCHEMA_VERSION);
+        }
+        setFormData({ date: new Date().toISOString().split("T")[0], items: [] });
+        setHeaderErrors({});
+        setStep(1);
+      } catch (e) {
+        console.log("create sales error", e);
+        toast.error("Failed to create sales entry");
       }
-      setFormData({ date: new Date().toISOString().split("T")[0], items: [] });
-      setHeaderErrors({});
-      setStep(1);
-      console.log("Submitted Payout Data:", formData);
-    } catch {
-      toast.error("Failed to create payout entry");
-    }
   };
 
   // =====================================================================
