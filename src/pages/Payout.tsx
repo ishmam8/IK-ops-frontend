@@ -1,6 +1,7 @@
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Construction } from "lucide-react";
 import { PayoutForm } from "@/components/payout/PayoutForm";
+import PayoutTable from "@/components/payout/PayoutTable";
 
 export default function Payouts() {
   return (
@@ -11,6 +12,7 @@ export default function Payouts() {
       </div>
 
       <PayoutForm />
+      <PayoutTable />
     </div>
   );
 }
